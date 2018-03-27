@@ -30,13 +30,14 @@ from keras.layers import Concatenate, Input
 def bez_mat(u, v, m, n):
     mCi = [0.]
     nCj = [0.]
-    bmat = np.ones((m+1,n+1))
-    U = np.zeros((m+1,2))
-    V = np.zeros((n+1,2))
-    U[:,0] = np.arange(m+1)*np.log(u)
-    U[:,1] = np.arange(m+1)*np.log(1-u)
-    V[:,0] = np.arange(n+1)*np.log(v)
-    V[:,1] = np.arange(n+1)*np.log(1-v)
+    N = u.shape[0]
+    bmat = np.zeros((N,1,m+1,n+1))
+    U = np.zeros((N,m+1,2))
+    V = np.zeros((N,n+1,2))
+    U[:,:,0] = np.dot(np.log(u).reshape((N,1)), np.arange(m+1).reshape((1,m+1)))
+    U[:,:,1] = np.dot(np.log(1-u).reshape((N,1)), np.arange(m+1).reshape((1,m+1)))
+    V[:,:,0] = np.dot(np.log(v).reshape((N,1)), np.arange(n+1).reshape((1,n+1)))
+    V[:,:,1] = np.dot(np.log(1-v).reshape((N,1)), np.arange(n+1).reshape((1,n+1)))
     for i in range(1,m+1):
         if (m-i)<i:
             mCi.append(mCi[m-i])
@@ -49,20 +50,25 @@ def bez_mat(u, v, m, n):
             nCj.append(nCj[j-1] + np.log(n-j+1) - np.log(j))
     for i in range(m+1):
         for j in range(n+1):
-            bmat[i,j] = mCi[i] + nCj[j] + U[i,0] + U[m-i,1] + V[j,0] + V[n-j,1]
-            bmat[i,j] = np.exp(bmat[i,j])
+            bmat[:,0,i,j] = mCi[i] + nCj[j]
+            bmat[:,0,i,j] += U[:,i,0] + U[:,m-i,1] + V[:,j,0] + V[:,n-j,1]
+            bmat[:,0,i,j] = np.exp(bmat[:,0,i,j])
     return bmat
 
 
-def bez_filter(c,h,w,m,n):
-    b_filter = np.zeros((h*w,c,m+1,n+1))
+def bez_filter(h,w,m,n):
+    b_filter = np.zeros((h*w,1,m+1,n+1))
+    U = np.zeros(h*w)
+    V = np.zeros(h*w)
     count = 0
     for i in range(h):
         u = (i+0.5)/h
         for j in range(w):
             v = (j+0.5)/w
-            b_filter[count,:,:,:] = bez_mat(u,v,m,n)
+            U[count] = u
+            V[count] = v
             count += 1
+    b_filter = bez_mat(U, V, m, n)
     return b_filter.astype(np.float32)
 
 class BezierSurfaceFitter(Layer):
@@ -74,7 +80,7 @@ class BezierSurfaceFitter(Layer):
         self.w = w
         self.m = m
         self.n = n
-        self.b_filter = tf.transpose(bez_filter(1,h,w,m,n), [2,3,1,0])
+        self.b_filter = tf.transpose(bez_filter(h,w,m,n), [2,3,1,0])
     def build(self, input_shape):
         self.K_mat = []
         for i in range(self.b):
