@@ -45,8 +45,8 @@ x_test /= col_scale_div
 
 n_img = 16
 img_batch = x_train[:n_img,:]
-m = 30
-n = 30
+m = 40
+n = 40
 
 model = bsfit(img_batch, m, n)
 dummy_input = np.zeros((1, 1)).astype(np.float32)
