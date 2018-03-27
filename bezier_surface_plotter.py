@@ -9,7 +9,6 @@ import tensorflow as tf
 sess = tf.Session()
 from keras import backend as K
 
-# the function that I'm going to plot
 def z_func(bfltr, K_mat, m, n, h, w):
     output = K.reshape(K.conv2d(K.reshape(K_mat, (1,1,m+1,n+1)), bfltr), (h,w))
     output = sess.run(output)
