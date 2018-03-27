@@ -22,8 +22,10 @@ sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
 K.set_session(sess)
 ############################################
 import keras
+from keras.models import Model
 from keras.engine import Layer
-from keras.layers import Concatenate
+from keras import optimizers
+from keras.layers import Concatenate, Input
 
 def bez_mat(u, v, m, n):
     mCi = [1.]
@@ -73,12 +75,14 @@ class BezierSurfaceFitter(Layer):
         self.n = n
         self.b_filter = tf.transpose(bez_filter(1,h,w,m,n), [2,3,1,0])
     def build(self, input_shape):
-        self.K_mat = [[]*self.c]*self.b
+        self.K_mat = []
         for i in range(self.b):
+            K_mat_i = []
             for j in range(self.c):
-                self.K_mat[i][j] = self.add_weight(shape=(self.m+1, self.n+1),
+                K_mat_i.append(self.add_weight(shape=(self.m+1, self.n+1),
                                     initializer="glorot_normal",
-                                    name='kernel')
+                                    name='kernel'))
+            self.K_mat.append(K_mat_i)
         self.built = True
     def call(self, inputs):
         X_rec = []
@@ -87,66 +91,31 @@ class BezierSurfaceFitter(Layer):
             for j in range(self.c):
                 X_rec_ = K.conv2d(K.reshape(self.K_mat[i][j], (1,1,self.m+1,self.n+1)),
                                 self.b_filter)
-                X_rec_i.append(K.reshape(X_rec_, (1,1,self.h,self.w)))
-            X_rec.append(Concatenate(axis=1)(X_rec_i))
-        return Concatenate(axis=0)(X_rec)
+                X_rec_i.append(K.reshape(X_rec_, (1,1,1,self.h,self.w)))
+            X_rec.append(Concatenate(axis=2)(X_rec_i))
+        output = Concatenate(axis=1)(X_rec)
+        print(output.shape)
+        return output
     def compute_output_shape(self, input_shape):
-        return input_shape
+        return (1, self.b, self.c, self.h, self.w)
     def get_config(self):
         base_config = super(BezierSurfaceFitter, self).get_config()
         return dict(list(base_config.items()))
 
 
-def bsfit(img, m, n, lr=0.6, epochs=300, max_batch=1024):
-    b,c,h,w = img.shape
+def bsfit(img_batch, m, n, lr=0.6, epochs=300, max_batch=1024):
+    b,c,h,w = img_batch.shape
     if b > max_batch:
         print("Batch size bigger than max batch size:", b, "vs", max_batch)
         sys.exit(1)
     dummy_input = np.zeros((1, 1)).astype(np.float32)
     inputs = Input(shape=(1,))
-    predictions.append(BezierSurfaceFitter(b,c,h,w,m,n)(inputs))
+    predictions = BezierSurfaceFitter(b,c,h,w,m,n)(inputs)
     model = Model(inputs=inputs, outputs=predictions)
     model.compile(loss="mean_squared_error",
                 optimizer=optimizers.Adam(lr=0.6))
-    model.fit(dummy_input, img,
+    model.fit(dummy_input, np.reshape(img_batch,[1]+list(img_batch.shape)),
                 batch_size=1,
                 epochs=300,
                 verbose=1)
     return model
-
-img_rows = 32
-img_cols = 32
-img_channels = 3
-
-(x_test, y_test), (x_train, y_train) = cifar10.load_data()
-x_train = x_train.reshape(x_train.shape[0], img_channels, img_rows, img_cols)
-x_test = x_test.reshape(x_test.shape[0], img_channels, img_rows, img_cols)
-x_train = x_train.astype('float32')
-x_test = x_test.astype('float32')
-x_train /= 255
-x_test /= 255
-
-img = x_train[0:1,:]
-m = 15
-n = 15
-n_repeat = 1024
-b_size = 1024
-
-img_repeat = np.zeros((n_repeat, img_channels, img_rows, img_cols)).astype(img.dtype)
-img_repeat[:,:,:,:] = img[0,:,:,:]
-
-inputs = Input(shape=(img_channels,img_rows,img_cols))
-predictions = BezierSurfaceFitter(img_channels, img_rows,img_cols,m,n)(inputs)
-model = Model(inputs=inputs, outputs=predictions)
-model.compile(loss="mean_squared_error",
-              optimizer=optimizers.Adam(lr=0.6))
-model.fit(img, img,
-            batch_size=b_size,
-            epochs=300,
-            verbose=1)
-
-pred = model.predict(img)
-plt.imshow(np.transpose(img[0,:], [1,2,0]), cmap="gray")
-plt.show()
-plt.imshow(np.transpose(pred[0,:], [1,2,0]), cmap="gray")
-plt.show()
