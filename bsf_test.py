@@ -28,7 +28,8 @@ K.set_session(sess)
 import keras
 from keras.datasets import mnist, cifar10
 import matplotlib.pyplot as plt
-from bezier_surface_fitting import bsfit
+from bezier_surface_fitting import bsfit, bez_filter
+from bezier_surface_plotter import bsplot
 
 img_rows = 32
 img_cols = 32
@@ -43,21 +44,23 @@ x_test = x_test.astype('float32')
 x_train /= col_scale_div
 x_test /= col_scale_div
 
-n_img = 16
+n_img = 4
 img_batch = x_train[:n_img,:]
-m = 40
-n = 40
+m = 30
+n = 30
 
-model = bsfit(img_batch, m, n)
+model, K_mat = bsfit(img_batch, m, n)
 dummy_input = np.zeros((1, 1)).astype(np.float32)
-
 pred = model.predict(dummy_input)
 
-
 # for analysis
+H = 2*img_rows
+W = 2*img_cols
+bfilter_fine = np.transpose(bez_filter(1,H,W,m,n), [2,3,1,0])
 mydir = "analysis/analysis_"+str(m)+"_"+str(n)
 os.makedirs(mydir)
 for i in range(n_img):
+    bsplot(m, n, H, W, bfilter_fine, K_mat[i,:], mydir+"/bsf_full_" + str(i) + "_" + str(m) + "_" + str(n) + ".png")
     fig=plt.figure(figsize=(8, 8))
     columns = 3
     rows = 1
@@ -67,6 +70,6 @@ for i in range(n_img):
     plt.imshow(np.transpose(np.clip(pred[0, i,:],0,1), [1,2,0]), cmap="gray")
     fig.add_subplot(rows, columns, 3)
     plt.imshow(np.transpose(np.abs(img_batch[i,:]-np.clip(pred[0, i,:],0,1)), [1,2,0]), cmap="gray")
-    plt.savefig(mydir+"/bsf" + str(i) + "_" + str(m) + "_" + str(n) + ".png")
+    plt.savefig(mydir+"/bsf_" + str(i) + "_" + str(m) + "_" + str(n) + ".png")
     plt.close()
 
