@@ -46,17 +46,17 @@ x_test /= col_scale_div
 
 n_img = 4
 img_batch = x_train[:n_img,:]
-m = 30
-n = 30
+m = 20
+n = 20
 
 model, K_mat = bsfit(img_batch, m, n)
 dummy_input = np.zeros((1, 1)).astype(np.float32)
 pred = model.predict(dummy_input)
 
 # for analysis
-H = 2*img_rows
-W = 2*img_cols
-bfilter_fine = np.transpose(bez_filter(1,H,W,m,n), [2,3,1,0])
+H = 4*img_rows
+W = 4*img_cols
+bfilter_fine = np.transpose(bez_filter(H,W,m,n), [2,3,1,0])
 mydir = "analysis/analysis_"+str(m)+"_"+str(n)
 os.makedirs(mydir)
 for i in range(n_img):
