@@ -28,28 +28,29 @@ from keras import optimizers
 from keras.layers import Concatenate, Input
 
 def bez_mat(u, v, m, n):
-    mCi = [1.]
-    nCj = [1.]
-    bmat = np.zeros((m+1,n+1))
-    U = np.ones((m+1,2))
-    V = np.ones((n+1,2))
+    mCi = [0.]
+    nCj = [0.]
+    bmat = np.ones((m+1,n+1))
+    U = np.zeros((m+1,2))
+    V = np.zeros((n+1,2))
+    U[:,0] = np.arange(m+1)*np.log(u)
+    U[:,1] = np.arange(m+1)*np.log(1-u)
+    V[:,0] = np.arange(n+1)*np.log(v)
+    V[:,1] = np.arange(n+1)*np.log(1-v)
     for i in range(1,m+1):
         if (m-i)<i:
             mCi.append(mCi[m-i])
         else:
-            mCi.append((mCi[i-1]*(m-i+1))/i)
-        U[i,0] = u*U[i-1,0]
-        U[i,1] = (1-u)*U[i-1,1]
+            mCi.append(mCi[i-1] + np.log(m-i+1) - np.log(i))
     for j in range(1,n+1):
         if (n-j)<j:
             nCj.append(nCj[n-j])
         else:
-            nCj.append((nCj[j-1]*(n-j+1))/j)
-        V[j,0] = v*V[j-1,0]
-        V[j,1] = (1-v)*V[j-1,1]
+            nCj.append(nCj[j-1] + np.log(n-j+1) - np.log(j))
     for i in range(m+1):
         for j in range(n+1):
-            bmat[i,j] = mCi[i]*nCj[j]*U[i,0]*U[m-i,1]*V[j,0]*V[n-j,1]
+            bmat[i,j] = mCi[i] + nCj[j] + U[i,0] + U[m-i,1] + V[j,0] + V[n-j,1]
+            bmat[i,j] = np.exp(bmat[i,j])
     return bmat
 
 
