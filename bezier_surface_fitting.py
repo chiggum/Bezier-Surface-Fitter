@@ -119,4 +119,4 @@ def bsfit(img_batch, m, n, lr=0.6, epochs=300, max_batch=1024):
                 batch_size=1,
                 epochs=300,
                 verbose=1)
-    return model
+    return model, np.reshape(model.layers[1].get_weights(), (b,c,m+1,n+1))
