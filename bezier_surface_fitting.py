@@ -56,14 +56,17 @@ def bez_mat(u, v, m, n):
     return bmat
 
 
-def bez_filter(h,w,m,n):
-    b_filter = np.zeros((h*w,1,m+1,n+1))
-    U = np.zeros(h*w)
-    V = np.zeros(h*w)
+def bez_filter(h,w,m,n,h_start=0,w_start=0,h_sz=None,w_sz=None):
+    if h_sz is None:
+        h_sz = h
+    if w_sz is None:
+        w_sz = w
+    U = np.zeros(h_sz*w_sz)
+    V = np.zeros(h_sz*w_sz)
     count = 0
-    for i in range(h):
+    for i in range(h_start, h_start+h_sz):
         u = (i+0.5)/h
-        for j in range(w):
+        for j in range(w_start, w_start+w_sz):
             v = (j+0.5)/w
             U[count] = u
             V[count] = v
@@ -72,7 +75,7 @@ def bez_filter(h,w,m,n):
     return b_filter.astype(np.float32)
 
 class BezierSurfaceFitter(Layer):
-    def __init__(self, b, c, h, w, m, n, **kwargs):
+    def __init__(self, b, c, h, w, m, n, chunk_h=32, chunk_w=32, **kwargs):
         super(BezierSurfaceFitter, self).__init__(**kwargs)
         self.b = b
         self.c = c
@@ -80,7 +83,8 @@ class BezierSurfaceFitter(Layer):
         self.w = w
         self.m = m
         self.n = n
-        self.b_filter = bez_filter(h,w,m,n)
+        self.chunk_h = np.min([self.h,chunk_h])
+        self.chunk_w = np.min([self.w,chunk_w])
     def build(self, input_shape):
         self.K_mat = []
         for i in range(self.b):
@@ -94,19 +98,39 @@ class BezierSurfaceFitter(Layer):
     def call(self, inputs):
         X_rec = []
         for i in range(self.b):
-            X_rec_i = []
+            X_rec.append([])
             for j in range(self.c):
-                X_rec_ = K.sum(self.b_filter * self.K_mat[i][j], axis=(1,2,3))
-                X_rec_i.append(K.reshape(X_rec_, (1,1,1,self.h,self.w)))
+                X_rec[i].append([])
+        h_ = 0
+        while h_ < self.h:
+            c_h = np.min([self.h-h_, self.chunk_h])
+            w_ = 0
+            while w_ < self.w:
+                c_w = np.min([self.w-w_, self.chunk_w])
+                b_filter = bez_filter(self.h,self.w,self.m,self.n,h_,w_,c_h,c_w)
+                for i in range(self.b):
+                    for j in range(self.c):
+                        my_output = K.reshape(K.sum(b_filter * self.K_mat[i][j], axis=(1,2,3)), (c_h,c_w))
+                        if w_ == 0:
+                            X_rec[i][j].append(my_output)
+                        else:
+                            X_rec[i][j][-1] = Concatenate(axis=1)([X_rec[i][j][-1],my_output])
+                w_ += c_w
+            h_ += c_h
+        for i in range(self.b):
+            for j in range(self.c):
+                if len(X_rec[i][j]) > 1:
+                    X_rec[i][j] = K.reshape(Concatenate(axis=0)(X_rec[i][j]), (1,1,1,self.h,self.w))
+                else:
+                    X_rec[i][j] = K.reshape(X_rec[i][j][0], (1,1,1,self.h,self.w))
             if self.c > 1:
-                X_rec.append(Concatenate(axis=2)(X_rec_i))
+                X_rec[i] = Concatenate(axis=2)(X_rec[i])
             else:
-                X_rec.append(X_rec_i[0])
+                X_rec[i] = X_rec[i][0]
         if self.b > 1:
             output = Concatenate(axis=1)(X_rec)
         else:
             output = X_rec[0]
-        print(output.shape)
         return output
     def compute_output_shape(self, input_shape):
         return (1, self.b, self.c, self.h, self.w)
@@ -115,19 +139,30 @@ class BezierSurfaceFitter(Layer):
         return dict(list(base_config.items()))
 
 
-def bsfit(img_batch, m, n, lr=0.6, epochs=300, max_batch=1024):
-    b,c,h,w = img_batch.shape
-    if b > max_batch:
-        print("Batch size bigger than max batch size:", b, "vs", max_batch)
-        sys.exit(1)
+def bs_build_model(b, c, h, w, m, n, lr=0.6):
     dummy_input = np.zeros((1, 1)).astype(np.float32)
     inputs = Input(shape=(1,))
     predictions = BezierSurfaceFitter(b,c,h,w,m,n)(inputs)
     model = Model(inputs=inputs, outputs=predictions)
     model.compile(loss="mean_squared_error",
-                optimizer=optimizers.Adam(lr=0.6))
+                optimizer=optimizers.Adam(lr=lr))
+    return model
+
+def bs_fit(img_batch, m, n, lr=0.6, epochs=300, max_batch=1024):
+    b,c,h,w = img_batch.shape
+    if b > max_batch:
+        print("Batch size bigger than max batch size:", b, "vs", max_batch)
+        sys.exit(1)
+    model = bs_build_model(b, c, h, w, m, n, lr)
+    dummy_input = np.zeros((1, 1)).astype(np.float32)
     model.fit(dummy_input, np.reshape(img_batch,[1]+list(img_batch.shape)),
                 batch_size=1,
                 epochs=300,
                 verbose=1)
-    return model, np.reshape(model.layers[1].get_weights(), (b,c,m+1,n+1))
+    return model
+
+def bs_get_weights(model):
+    return model.layers[1].get_weights()
+
+def bs_set_weights(model, K_mat):
+    model.layers[1].set_weights(K_mat)
