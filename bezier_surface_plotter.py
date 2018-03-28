@@ -10,8 +10,7 @@ sess = tf.Session()
 from keras import backend as K
 
 def z_func(bfltr, K_mat, m, n, h, w):
-    output = K.reshape(K.conv2d(K.reshape(K_mat, (1,1,m+1,n+1)), bfltr), (h,w))
-    output = sess.run(output)
+    output = np.reshape(np.sum(bfltr*K_mat, axis=(1,2,3)), (h,w))
     return output
 
 
