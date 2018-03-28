@@ -80,7 +80,7 @@ class BezierSurfaceFitter(Layer):
         self.w = w
         self.m = m
         self.n = n
-        self.b_filter = tf.transpose(bez_filter(h,w,m,n), [2,3,1,0])
+        self.b_filter = bez_filter(h,w,m,n)
     def build(self, input_shape):
         self.K_mat = []
         for i in range(self.b):
@@ -96,11 +96,16 @@ class BezierSurfaceFitter(Layer):
         for i in range(self.b):
             X_rec_i = []
             for j in range(self.c):
-                X_rec_ = K.conv2d(K.reshape(self.K_mat[i][j], (1,1,self.m+1,self.n+1)),
-                                self.b_filter)
+                X_rec_ = K.sum(self.b_filter * self.K_mat[i][j], axis=(1,2,3))
                 X_rec_i.append(K.reshape(X_rec_, (1,1,1,self.h,self.w)))
-            X_rec.append(Concatenate(axis=2)(X_rec_i))
-        output = Concatenate(axis=1)(X_rec)
+            if self.c > 1:
+                X_rec.append(Concatenate(axis=2)(X_rec_i))
+            else:
+                X_rec.append(X_rec_i[0])
+        if self.b > 1:
+            output = Concatenate(axis=1)(X_rec)
+        else:
+            output = X_rec[0]
         print(output.shape)
         return output
     def compute_output_shape(self, input_shape):
