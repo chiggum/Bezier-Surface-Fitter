@@ -30,34 +30,36 @@ from keras.datasets import mnist, cifar10
 import matplotlib.pyplot as plt
 from bezier_surface_fitting import bsfit, bez_filter
 from bezier_surface_plotter import bsplot
+import cv2
 
-img_rows = 32
-img_cols = 32
-img_channels = 3
+fname = "data/tree.png"
+img = cv2.imread(fname)
+img = cv2.resize(img, (int(img.shape[0]/4),int(img.shape[1]/4)))
+
+img_rows = img.shape[0]
+img_cols = img.shape[1]
+img_channels = img.shape[2]
 col_scale_div = 255
 
-(x_test, y_test), (x_train, y_train) = cifar10.load_data()
-x_train = x_train.reshape(x_train.shape[0], img_channels, img_rows, img_cols)
-x_test = x_test.reshape(x_test.shape[0], img_channels, img_rows, img_cols)
-x_train = x_train.astype('float32')
-x_test = x_test.astype('float32')
-x_train /= col_scale_div
-x_test /= col_scale_div
+img = np.transpose(img, [2,0,1])
+img = img.reshape((1,img_channels,img_rows,img_cols))
+img = img.astype('float32')
+img /= col_scale_div
 
-n_img = 4
-img_batch = x_train[:n_img,:]
-m = 32
-n = 32
+n_img = 1
+img_batch = img
+m = 20
+n = 20
 
 model, K_mat = bsfit(img_batch, m, n)
 dummy_input = np.zeros((1, 1)).astype(np.float32)
 pred = model.predict(dummy_input)
 
 # for analysis
-H = 4*img_rows
-W = 4*img_cols
+H = 2*img_rows
+W = 2*img_cols
 bfilter_fine = bez_filter(H,W,m,n)
-mydir = "analysis/analysis_"+str(m)+"_"+str(n)
+mydir = "analysis/big_img_"+str(m)+"_"+str(n)
 os.makedirs(mydir)
 for i in range(n_img):
     bsplot(m, n, H, W, bfilter_fine, K_mat[i,:], mydir+"/bsf_full_" + str(i) + "_" + str(m) + "_" + str(n) + ".png")
