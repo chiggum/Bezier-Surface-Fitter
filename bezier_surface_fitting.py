@@ -75,6 +75,30 @@ def bez_filter(h,w,m,n,h_start=0,w_start=0,h_sz=None,w_sz=None):
     b_filter = bez_mat(U, V, m, n)
     return b_filter.astype(np.float32)
 
+
+def bez_filter_log(h,w,m,n,h_end,w_end,h_start=-2.,w_start=-2.):
+    assert h_start != 0 and w_start != 0
+    assert h_end > h_start and w_end > w_start
+    assert h_end <= 1 and w_end <= 1
+    h_end = np.log(h_end)
+    w_end = np.log(w_end)
+    h_step = (h_end-h_start)/(h-1)
+    w_step = (w_end-w_start)/(w-1)
+    U = []
+    V = []
+    for i in range(h):
+        u = h_start+i*h_step
+        u = np.exp(u)
+        for j in range(w):
+            v = w_start+j*w_step
+            v = np.exp(v)
+            U.append(u)
+            V.append(v)
+    U = np.asarray(U)
+    V = np.asarray(V)
+    b_filter = bez_mat(U, V, m, n)
+    return b_filter.astype(np.float32)
+
 #####################
 
 class BezierSurfaceFitter(Layer):

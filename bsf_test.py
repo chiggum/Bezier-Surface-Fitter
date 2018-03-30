@@ -28,7 +28,7 @@ K.set_session(sess)
 import keras
 from keras.datasets import mnist, cifar10
 import matplotlib.pyplot as plt
-from bezier_surface_fitting import bs_fit, bez_filter
+from bezier_surface_fitting import bs_fit, bez_filter, bez_filter_log
 from bezier_surface_plotter import bsplot
 
 img_rows = 32
@@ -62,30 +62,41 @@ for i in range(n_img):
 
 
 # for analysis
-H = 4*img_rows
-W = 4*img_cols
+H = img_rows
+W = img_cols
 fine_bez_input = bez_filter(H, W, m, n)
 fine_preds = []
 for i in range(n_img):
     fine_preds.append(np.reshape(models[i].predict(fine_bez_input), (H,W,img_channels)))
 
 
-mydir = "analysis/sep_models_analysis_"+str(m)+"_"+str(n)
+log_H = 100
+log_W = 100
+log_h_end = (img_rows-0.5)/img_rows
+log_w_end = (img_cols-0.5)/img_cols
+log_bez_input = bez_filter_log(log_H, log_W, m, n, log_h_end, log_w_end)
+log_preds = []
+for i in range(n_img):
+    log_preds.append(np.reshape(models[i].predict(log_bez_input), (log_H,log_W,img_channels)))
+
+
+mydir = "analysis/log_2_big_img_sep_models_analysis_"+str(m)+"_"+str(n)
 if not os.path.exists(mydir):
     os.makedirs(mydir)
 
 
 for i in range(n_img):
-    bsplot(m, n, H, W, fine_preds[i], mydir+"/bsf_full_" + str(i) + "_" + str(m) + "_" + str(n) + ".png")
-    fig=plt.figure(figsize=(8, 8))
-    columns = 3
-    rows = 1
+    # bsplot(m, n, H, W, fine_preds[i], mydir+"/bsf_full_" + str(i) + "_" + str(m) + "_" + str(n) + ".png")
+    fig=plt.figure(figsize=(20, 10))
+    columns = 2
+    rows = 2
     fig.add_subplot(rows, columns, 1)
     plt.imshow(np.transpose(img_batch[i,:], [1,2,0]), cmap="gray")
     fig.add_subplot(rows, columns, 2)
     plt.imshow(np.clip(preds[i],0,1), cmap="gray")
     fig.add_subplot(rows, columns, 3)
+    plt.imshow(np.clip(log_preds[i],0,1), cmap="gray")
+    fig.add_subplot(rows, columns, 4)
     plt.imshow(np.abs(np.transpose(img_batch[i,:], [1,2,0])-np.clip(preds[i],0,1)), cmap="gray")
     plt.savefig(mydir+"/bsf_" + str(i) + "_" + str(m) + "_" + str(n) + ".png")
     plt.close()
-
